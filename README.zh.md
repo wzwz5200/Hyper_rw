@@ -40,7 +40,7 @@ GuestMemory 封装 VA→PA 转换、跨页处理，是用户态访问目标进�
 
 ### 构造方式
 ```cpp
-GuestMemory mem(read_guest_cr3);  // 绑定页表
+GuestMemory mem( hypercall::read_guest_cr3());  // 绑定页表
 ```
 
 ### 2. ReadValue / WriteValue
