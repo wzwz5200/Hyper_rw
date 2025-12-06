@@ -175,7 +175,7 @@ int main() {
 
 	uint64_t kernel_head_addr = GetNtoskrnlBaseAddress() + 0xF05790; //PsActiveProcessHead 静态偏移量
 
-	uint64_t target_pid = 20528; //cs2 pid
+	uint64_t target_pid = 9188; //cs2 pid
 	uint64_t target_address = 0x18f32c3b070; // 读取游戏/程序内存地址
 	int value_buffer = 0;
 
@@ -201,6 +201,28 @@ int main() {
 
 		if (base != 0) {
 			std::cout << "找到DLL 为: 0x" << std::hex << base << std::endl;
+
+			GuestMemory mem(target_cr3);
+
+
+			int health = 0;
+			uint64_t local_player_addr;
+
+
+			mem.ReadValue<uint64_t>(base + 0x1BEDF28, local_player_addr);
+
+			// 读取健康值
+			while (true)
+			{
+				if (mem.ReadValue<int>(local_player_addr + 0x34c, health)) {
+					printf("当前血量: %d\n", health);
+				}
+				else {
+					printf("读取失败: %d\n");
+				}
+				Sleep(1000);
+			}
+
 
 		}
 	}

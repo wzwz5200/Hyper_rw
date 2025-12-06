@@ -39,7 +39,7 @@ uint64_t GetProcessCr3(uint64_t target_pid, uint64_t ps_active_process_head_addr
 			system_cr3,
 			sizeof(next_entry)
 		) == 0) {
-			std::cout << "  ❌ ERROR: 无法读取 Flink 地址: 0x" << flink_addr << std::endl;
+			std::cout << " ERROR: 无法读取 Flink 地址: 0x" << flink_addr << std::endl;
 			break;
 		}
 
@@ -48,7 +48,7 @@ uint64_t GetProcessCr3(uint64_t target_pid, uint64_t ps_active_process_head_addr
 
 		// 如果链表断了或回到起点，则结束
 		if (next_entry == 0 || next_entry == ps_active_process_head_addr) {
-			std::cout << "  ✅ 链表遍历结束 (回到起点或断链)." << std::endl;
+			std::cout << " 链表遍历结束 (回到起点或断链)." << std::endl;
 			break;
 		}
 
@@ -65,7 +65,7 @@ uint64_t GetProcessCr3(uint64_t target_pid, uint64_t ps_active_process_head_addr
 			system_cr3,
 			sizeof(current_pid)
 		) == 0) {
-			std::cout << "  ❌ ERROR: 无法读取 PID (地址: 0x" << eprocess_base + Offsets::UniqueProcessId << ")" << std::endl;
+			std::cout << " ERROR: 无法读取 PID (地址: 0x" << eprocess_base + Offsets::UniqueProcessId << ")" << std::endl;
 			break;
 		}
 
@@ -81,10 +81,10 @@ uint64_t GetProcessCr3(uint64_t target_pid, uint64_t ps_active_process_head_addr
 				system_cr3,
 				sizeof(target_cr3)
 			) == 0) {
-				std::cout << "  ❌ ERROR: 找到 PID 但无法读取 CR3!" << std::endl;
+				std::cout << "找到 PID 但无法读取 CR3!" << std::endl;
 				return 0;
 			}
-			std::cout << "  🎉 找到目标进程! CR3: 0x" << std::hex << target_cr3 << std::endl;
+			std::cout << " 找到目标进程! CR3: 0x" << std::hex << target_cr3 << std::endl;
 			return target_cr3;
 		}
 
@@ -209,7 +209,7 @@ uint64_t FindPebByCr3_Raw(uint64_t target_cr3, uint64_t ps_active_process_head_a
 	std::cout << "当前 System CR3: 0x" << system_cr3 << std::endl;
 
 	if (ps_active_process_head_addr == 0) {
-		std::cout << "❌ ERROR: 链表头地址无效" << std::endl;
+		std::cout << "ERROR: 链表头地址无效" << std::endl;
 		return 0;
 	}
 
@@ -228,13 +228,13 @@ uint64_t FindPebByCr3_Raw(uint64_t target_cr3, uint64_t ps_active_process_head_a
 			system_cr3,
 			sizeof(next_entry)
 		) == 0) {
-			std::cout << "  ❌ ERROR: 读取链表节点失败: 0x" << current_list_entry << std::endl;
+			std::cout << "  ERROR: 读取链表节点失败: 0x" << current_list_entry << std::endl;
 			break;
 		}
 
 		// 检查是否回到起点或断链
 		if (next_entry == 0 || next_entry == ps_active_process_head_addr) {
-			std::cout << "  ✅ 遍历结束 (回到起点或末尾)" << std::endl;
+			std::cout << "遍历结束" << std::endl;
 			break;
 		}
 
@@ -259,7 +259,7 @@ uint64_t FindPebByCr3_Raw(uint64_t target_cr3, uint64_t ps_active_process_head_a
 		constexpr uint64_t PFN_MASK = ~0xFFFull;
 
 		if ((current_dirbase & PFN_MASK) == (target_cr3 & PFN_MASK)) {
-			std::cout << "  🎉 发现目标进程!" << std::endl;
+			std::cout << "     发现目标进程!" << std::endl;
 			std::cout << "     EPROCESS: 0x" << eprocess_base << std::endl;
 			std::cout << "     Found CR3: 0x" << current_dirbase << std::endl;
 
@@ -275,7 +275,7 @@ uint64_t FindPebByCr3_Raw(uint64_t target_cr3, uint64_t ps_active_process_head_a
 				return target_peb;
 			}
 			else {
-				std::cout << "     ❌ ERROR: 无法读取 PEB" << std::endl;
+				std::cout << "      ERROR: 无法读取 PEB" << std::endl;
 				return 0;
 			}
 		}

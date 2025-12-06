@@ -62,4 +62,12 @@
       <Filter>源文件</Filter>
     </MASM>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\README.md">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="..\README.zh.md">
+      <Filter>资源文件</Filter>
+    </None>
+  </ItemGroup>
 </Project>
