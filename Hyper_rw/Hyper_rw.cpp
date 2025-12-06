@@ -162,7 +162,7 @@ int main() {
 		std::cout << "Base Address: 0x" << std::hex << ntoskrnl_base << std::endl;
 
 
-		const uint64_t STATIC_PS_ACTIVE_PROCESS_HEAD_OFFSET = 0xF05790;
+		const uint64_t STATIC_PS_ACTIVE_PROCESS_HEAD_OFFSET = 0xF05790;//PsActiveProcessHead 静态偏移量
 
 		uint64_t ps_active_process_head_addr = ntoskrnl_base + STATIC_PS_ACTIVE_PROCESS_HEAD_OFFSET;
 
@@ -173,9 +173,9 @@ int main() {
 		std::cout << "无法获取 ntoskrnl.exe 基址。请检查权限或系统版本。" << std::endl;
 	}
 
-	uint64_t kernel_head_addr = GetNtoskrnlBaseAddress() + 0xF05790;
+	uint64_t kernel_head_addr = GetNtoskrnlBaseAddress() + 0xF05790; //PsActiveProcessHead 静态偏移量
 
-	uint64_t target_pid = 20528;
+	uint64_t target_pid = 20528; //cs2 pid
 	uint64_t target_address = 0x18f32c3b070; // 读取游戏/程序内存地址
 	int value_buffer = 0;
 

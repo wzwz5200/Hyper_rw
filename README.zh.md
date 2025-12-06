@@ -4,7 +4,7 @@
 本文档介绍基于 [noahware/hyper-reV](https://github.com/noahware/hyper-reV)
  的虚拟内存访问类 **GuestMemory**，以及用于定位目标进程 CR3、EPROCESS、PEB、模块基址的四个内核工具函数。
 
- ### 此项目依赖特定的Windows版本(Windows11 25H2,如果版本不匹配会造成此项目无法运行，请修改GetM中的Offsets) 。
+ ### 此项目依赖特定的Windows版本(Windows11 25H2,如果版本不匹配会造成此项目无法运行，请修改GetM中的Offsets &PsActiveProcessHead offset:0xF05790 in Hyper_rw.cpp ) 。
 
 ---
 
