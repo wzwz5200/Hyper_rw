@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="Hyper_rw/Hyper_rw.vcxproj" Id="70db1031-3072-497e-85f3-903143e5bf2b" />
+</Solution>
