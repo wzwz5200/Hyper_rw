@@ -1,7 +1,11 @@
 #pragma once
 #include "rw.h"
 #include <iostream>
+#include <Windows.h>
 
+#include <dbghelp.h>
+
+#pragma comment(lib, "dbghelp.lib")
 struct UNICODE_STRING_RAW {
 	unsigned short Length;
 	unsigned short MaximumLength;
@@ -30,3 +34,27 @@ uint64_t FindProcessEProcessBase(uint64_t target_pid, uint64_t ps_active_process
 
 uint64_t GetModuleBase_Raw(uint64_t target_cr3, uint64_t peb_address, const char* wanted_name);
 uint64_t FindPebByCr3_Raw(uint64_t target_cr3, uint64_t ps_active_process_head_addr);
+
+
+// 读取系统ntoskrnl 路径
+std::string GetRealNtoskrnlPath();
+
+void LogError(const std::string& funcName);
+
+bool PreloadDebugLibraries(const std::string& dirPath);
+
+bool InitSymbolEngine(HANDLE hProcess, const std::string& searchPath);
+
+//获取系统 ntoskrnl的完整路径
+std::string GetKernelImagePath();
+
+
+//模块加载基址
+DWORD64 LoadKernelModule(HANDLE hProcess);
+
+//获取符号的RVA
+
+DWORD64 ResolveSymbolRVA(HANDLE hProcess, DWORD64 moduleBase, const std::string& symbolName);
+
+
+std::string GetCurrentExeDirectory();

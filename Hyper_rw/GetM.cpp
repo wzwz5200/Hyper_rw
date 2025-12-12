@@ -1,5 +1,7 @@
 ﻿#include "GetM.h"
 
+#include <filesystem>
+
 
 
 
@@ -264,6 +266,7 @@ uint64_t FindPebByCr3_Raw(uint64_t target_cr3, uint64_t ps_active_process_head_a
 			std::cout << "     Found CR3: 0x" << current_dirbase << std::endl;
 
 			// 6. 匹配成功，读取 PEB
+
 			uint64_t target_peb = 0;
 			if (hypercall::read_guest_virtual_memory(
 				&target_peb,
@@ -287,3 +290,125 @@ uint64_t FindPebByCr3_Raw(uint64_t target_cr3, uint64_t ps_active_process_head_a
 	std::cout << "--- 未找到匹配该 CR3 的进程 ---" << std::endl;
 	return 0;
 }
+
+
+
+std::string GetRealNtoskrnlPath()
+{
+	char sysDir[MAX_PATH] = { 0 };
+	GetSystemDirectoryA(sysDir, MAX_PATH);
+
+	std::string path = std::string(sysDir) + "\\ntoskrnl.exe";
+
+	return path;
+}
+
+
+void LogError(const std::string& funcName) {
+	DWORD err = GetLastError();
+	std::cerr << "[!] " << funcName << " 失败, Error Code: " << err << std::endl;
+}
+
+bool PreloadDebugLibraries(const std::string& dirPath) {
+	std::string dbghelpPath = dirPath + "dbghelp.dll";
+	std::string symsrvPath = dirPath + "symsrv.dll";
+
+	std::cout << "[*] 尝试加载 DLL 路径: " << dirPath << std::endl;
+
+	// symsrv 必须先加载，不然 dbghelp 可能会用系统默认的，导致解析符号失败
+	HMODULE hSymSrv = LoadLibraryA(symsrvPath.c_str());
+	HMODULE hDbgHelp = LoadLibraryA(dbghelpPath.c_str());
+
+	if (hDbgHelp && hSymSrv) {
+		std::cout << "[+] 自定义 DLL 加载成功。" << std::endl;
+		return true;
+	}
+	else {
+		if (!hSymSrv) std::cerr << "[!] 无法加载 symsrv.dll (路径: " << symsrvPath << ")" << std::endl;
+		if (!hDbgHelp) std::cerr << "[!] 无法加载 dbghelp.dll (路径: " << dbghelpPath << ")" << std::endl;
+		return false;
+	}
+}
+
+bool InitSymbolEngine(HANDLE hProcess, const std::string& searchPath) {
+	DWORD options = SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS | SYMOPT_DEBUG | SYMOPT_LOAD_LINES | SYMOPT_FAIL_CRITICAL_ERRORS;
+	SymSetOptions(options);
+	if (!SymInitialize(hProcess, searchPath.c_str(), FALSE)) {
+		LogError("SymInitialize");
+		return false;
+	}
+	return true;
+}
+
+std::string GetKernelImagePath() {
+	char sysDir[MAX_PATH] = { 0 };
+	GetSystemDirectoryA(sysDir, MAX_PATH);
+	return std::string(sysDir) + "\\ntoskrnl.exe";
+}
+
+DWORD64 LoadKernelModule(HANDLE hProcess) {
+	std::string ntosPath = GetKernelImagePath();
+	std::cout << "[*] 正在加载内核镜像: " << ntosPath << std::endl;
+
+	DWORD64 base = SymLoadModuleEx(
+		hProcess,
+		NULL,
+		ntosPath.c_str(),
+		NULL,
+		0,
+		0,
+		NULL,
+		0
+	);
+
+	if (base == 0) {
+		LogError("SymLoadModuleEx");
+	}
+	else {
+		std::cout << "[+] 模块加载基址 (Virtual): 0x" << std::hex << base << std::endl;
+	}
+
+	return base;
+}
+
+
+DWORD64 ResolveSymbolRVA(HANDLE hProcess, DWORD64 moduleBase, const std::string& symbolName) {
+	char buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME] = { 0 };
+	PSYMBOL_INFO pSym = (PSYMBOL_INFO)buffer;
+
+	pSym->SizeOfStruct = sizeof(SYMBOL_INFO);
+	pSym->MaxNameLen = MAX_SYM_NAME;
+
+	if (!SymFromName(hProcess, symbolName.c_str(), pSym)) {
+		std::cerr << "[!] 找不到符号: " << symbolName << std::endl;
+		LogError("SymFromName");
+		return 0;
+	}
+
+	DWORD64 rva = pSym->Address - moduleBase;
+
+	std::cout << "\n[RESULT] 符号解析成功: " << symbolName << std::endl;
+	std::cout << "    > Virtual Address: 0x" << std::hex << pSym->Address << std::endl;
+	std::cout << "    > Module Base:     0x" << std::hex << moduleBase << std::endl;
+	std::cout << "    > RVA (Offset):    0x" << std::hex << rva << std::endl;
+
+	return rva;
+}
+
+
+std::string GetCurrentExeDirectory() {
+	char buffer[MAX_PATH] = { 0 };
+	GetModuleFileNameA(NULL, buffer, MAX_PATH);
+
+	std::filesystem::path path(buffer);
+	std::string dir = path.parent_path().string();
+
+	if (!dir.empty() && dir.back() != '\\') {
+		dir += "\\";
+	}
+
+	return dir;
+}
+
+
+

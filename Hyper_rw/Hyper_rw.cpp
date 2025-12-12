@@ -5,9 +5,11 @@
 #include <memory>    
 #include "HyperCall/call.h"
 #include "GetM.h"
+#include <dbghelp.h>
 
 #include <chrono>
 #include <thread>
+#include "GetM.h"
 using namespace std;
 
 typedef struct _RTL_PROCESS_MODULE_INFORMATION {
@@ -153,6 +155,17 @@ void worker_thread(uint64_t va, uint64_t cr3, size_t size,
 }
 
 
+const std::string SYMBOL_STORE_PATH = "srv*C:\\Symbols*https://msdl.microsoft.com/download/symbols";
+
+
+struct SymbolCleaner {
+	HANDLE hProc;
+	SymbolCleaner(HANDLE h) : hProc(h) {}
+	~SymbolCleaner() { SymCleanup(hProc); }
+};
+
+
+
 int main() {
 	size_t chunk_size = 8 * 1024 * 1024; // 8MB per read
 	uint64_t ntoskrnl_base = GetNtoskrnlBaseAddress();
@@ -173,9 +186,37 @@ int main() {
 		std::cout << "无法获取 ntoskrnl.exe 基址。请检查权限或系统版本。" << std::endl;
 	}
 
-	uint64_t kernel_head_addr = GetNtoskrnlBaseAddress() + 0xF05790; //PsActiveProcessHead 静态偏移量
+	HANDLE hProcess = GetCurrentProcess();
 
-	uint64_t target_pid = 9188; //cs2 pid
+	// 1. 获取当前 exe 所在目录
+	std::string currentDir = GetCurrentExeDirectory();
+	std::cout << "当前运行目录: " << currentDir << std::endl;
+
+	// 2. 从当前目录加载 DLL
+
+	if (!PreloadDebugLibraries(currentDir)) {
+		std::cerr << "警告: 在当前目录下未找到 DLL，尝试使用系统版本..." << std::endl;
+		// 如果想强制依赖本地 dll，可以在这里 return 1;
+	}
+
+	// 3. 初始化引擎
+	if (!InitSymbolEngine(hProcess, SYMBOL_STORE_PATH)) {
+		return 1;
+	}
+	SymbolCleaner cleaner(hProcess);
+
+	// 4. 加载内核模块
+	DWORD64 baseAddress = LoadKernelModule(hProcess);
+	if (!baseAddress) return 1;
+
+	// 5. 解析PsActiveProcessHead符号
+	DWORD64 rva = ResolveSymbolRVA(hProcess, baseAddress, "PsActiveProcessHead");
+
+
+
+	uint64_t kernel_head_addr = GetNtoskrnlBaseAddress() + rva; //PsActiveProcessHead 静态偏移量
+
+	uint64_t target_pid = 1668; //cs2 pid
 	uint64_t target_address = 0x18f32c3b070; // 读取游戏/程序内存地址
 	int value_buffer = 0;
 
