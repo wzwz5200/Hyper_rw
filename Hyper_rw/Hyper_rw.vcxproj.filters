@@ -56,6 +56,9 @@
     <ClInclude Include="test.h">
       <Filter>头文件\Rw</Filter>
     </ClInclude>
+    <ClInclude Include="Hyper_rw.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <MASM Include="vmexit.asm">

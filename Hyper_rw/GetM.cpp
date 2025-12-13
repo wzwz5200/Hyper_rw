@@ -6,6 +6,74 @@
 
 
 
+/**
+ * @brief 动态查找 ntoskrnl.exe 的当前加载基地址。
+ * 通过调用未公开的 NtQuerySystemInformation API 实现。
+ * @return 成功返回 ntoskrnl.exe 的基地址 (uint64_t)，失败返回 0。
+ */
+uint64_t GetNtoskrnlBaseAddress() {
+	// 1. 动态加载 NtQuerySystemInformation
+	HMODULE hNtdll = GetModuleHandleA("ntdll.dll");
+	if (hNtdll == nullptr) return 0;
+
+	TNtQuerySystemInformation NtQuerySystemInformation =
+		(TNtQuerySystemInformation)GetProcAddress(hNtdll, "NtQuerySystemInformation");
+
+	if (NtQuerySystemInformation == nullptr) return 0;
+
+	ULONG size = 0;
+
+	NtQuerySystemInformation(
+		(SYSTEM_INFORMATION_CLASS)SystemModuleInformation_Ex,
+		nullptr,
+		0,
+		&size
+	);
+
+
+	if (size == 0 || size > 0x100000) {
+		return 0;
+	}
+
+
+	std::unique_ptr<RTL_PROCESS_MODULES, void(*)(void*)> buffer(
+		(PRTL_PROCESS_MODULES)malloc(size),
+		free
+	);
+
+	if (buffer == nullptr) return 0;
+
+	NTSTATUS status = NtQuerySystemInformation(
+		(SYSTEM_INFORMATION_CLASS)SystemModuleInformation_Ex,
+		buffer.get(),
+		size,
+		&size
+	);
+
+	if (!NT_SUCCESS(status)) {
+
+		return 0;
+	}
+
+	for (ULONG i = 0; i < buffer->NumberOfModules; i++) {
+		const char* name =
+			(const char*)buffer.get()->Modules[i].FullPathName +
+			buffer.get()->Modules[i].OffsetToFileName;
+
+
+		if (_stricmp(name, "ntoskrnl.exe") == 0 ||
+			_stricmp(name, "ntkrnlmp.exe") == 0 ||
+			_stricmp(name, "ntkrnlpa.exe") == 0 ||
+			_stricmp(name, "ntkrpamp.exe") == 0)
+		{
+
+			return (uint64_t)buffer.get()->Modules[i].ImageBase;
+		}
+	}
+
+	return 0;
+}
+
 uint64_t GetProcessCr3(uint64_t target_pid, uint64_t ps_active_process_head_addr) {
 	// -----------------------------------------------------
 	// 1. 关键修正：使用 System Process 的 DirBase (您需要手动替换)
@@ -411,4 +479,76 @@ std::string GetCurrentExeDirectory() {
 }
 
 
+// 辅助：获取符号的 TypeIndex
+DWORD GetTypeIndex(HANDLE hProcess, DWORD64 moduleBase, const std::string& typeName) {
+	SYMBOL_INFO_PACKAGE symInfo = { 0 };
+	symInfo.si.SizeOfStruct = sizeof(SYMBOL_INFO);
+	symInfo.si.MaxNameLen = MAX_SYM_NAME;
+
+	// 也就是通过名称查找类型符号
+	// 注意：有些符号需要加模块前缀，或者确保已加载 PDB
+	if (SymGetTypeFromName(hProcess, moduleBase, typeName.c_str(), &symInfo.si)) {
+		return symInfo.si.TypeIndex;
+	}
+	return 0;
+}
+
+DWORD GetFieldOffset(HANDLE hProcess, DWORD64 moduleBase, const std::string& structName, const std::string& memberName) {
+	// 1. 获取父结构体 (如 _EPROCESS) 的 TypeIndex
+	DWORD parentIndex = GetTypeIndex(hProcess, moduleBase, structName);
+	if (parentIndex == 0) {
+		std::cerr << "[!] 找不到结构体: " << structName << std::endl;
+		return -1;
+	}
+
+	// 2. 获取该结构体的所有子元素 (成员变量) 数量
+	DWORD childrenCount = 0;
+	if (!SymGetTypeInfo(hProcess, moduleBase, parentIndex, TI_GET_CHILDRENCOUNT, &childrenCount)) {
+		return -1;
+	}
+
+	// 3. 分配内存以获取子元素 ID 列表
+	// FindChildrenParams 的大小是 header + 数组
+	int findChildrenSize = sizeof(TI_FINDCHILDREN_PARAMS) + childrenCount * sizeof(ULONG);
+	TI_FINDCHILDREN_PARAMS* pChildren = (TI_FINDCHILDREN_PARAMS*)new char[findChildrenSize] { 0 };
+
+	pChildren->Count = childrenCount;
+	pChildren->Start = 0;
+
+	// 4. 获取所有子元素的 TypeID
+	if (!SymGetTypeInfo(hProcess, moduleBase, parentIndex, TI_FINDCHILDREN, pChildren)) {
+		delete[](char*)pChildren;
+		return -1;
+	}
+
+	DWORD foundOffset = -1;
+
+	// 5. 遍历每一个成员，比对名字
+	for (DWORD i = 0; i < childrenCount; i++) {
+		ULONG childId = pChildren->ChildId[i];
+		WCHAR* nameBuffer = NULL;
+
+		// 获取成员名称
+		if (SymGetTypeInfo(hProcess, moduleBase, childId, TI_GET_SYMNAME, &nameBuffer)) {
+			// 宽字符转 std::string 比较 (简单处理)
+			std::wstring wName(nameBuffer);
+			std::string sName(wName.begin(), wName.end());
+
+			// 必须释放 nameBuffer (由 DbgHelp 分配)
+			LocalFree(nameBuffer);
+
+			if (sName == memberName) {
+				// 6. 名字匹配成功，获取 Offset
+				DWORD offset = 0;
+				if (SymGetTypeInfo(hProcess, moduleBase, childId, TI_GET_OFFSET, &offset)) {
+					foundOffset = offset;
+				}
+				break; // 找到了就退出
+			}
+		}
+	}
+
+	delete[](char*)pChildren;
+	return foundOffset;
+}
 

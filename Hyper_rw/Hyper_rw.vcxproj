@@ -146,6 +146,7 @@
     <ClInclude Include="HyperCall\hypercall_def.h" />
     <ClInclude Include="HyperCall\memory_operation.h" />
     <ClInclude Include="HyperCall\trap_frame.h" />
+    <ClInclude Include="Hyper_rw.h" />
     <ClInclude Include="rw.h" />
     <ClInclude Include="test.h" />
   </ItemGroup>
